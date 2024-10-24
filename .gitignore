@@ -14,7 +14,8 @@
 *.wxx
 .DS_Store
 .idea/
-build/
+testdata/
 tndocx
+userdata/
 
 !cmd/tndocx
