@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"github.com/playbymail/tndocx"
 	"github.com/playbymail/tndocx/docx"
 	"iter"
@@ -18,11 +19,16 @@ import (
 func main() {
 	log.SetFlags(log.Lshortfile)
 
-	root := "../userdata"
+	root, rootStarted := "../userdata", time.Now()
 	for clan := range Clans(root) {
 		docxPath := filepath.Join(root, clan, "docx")
 		for turnId := range TurnIds(docxPath) {
 			for reportName := range TurnReports(docxPath, turnId, "docx") {
+				// todo: fix this bug
+				if !strings.HasSuffix(reportName, ".docx") {
+					continue
+				}
+
 				started := time.Now()
 				// load the Word document
 				docxPath := filepath.Join(root, clan, "docx", reportName)
@@ -62,9 +68,20 @@ func main() {
 					log.Fatalf("error: %v\n", err)
 				}
 				log.Printf("%s: %s: created %s\t in %v\n", clan, turnId, textPath, time.Since(started))
+
+				// create the json
+				jsonPath := strings.TrimSuffix(docxPath, filepath.Ext(docxPath)) + ".json"
+				rpt := tndocx.ToReport(reportName, lines)
+				if buf, err := json.MarshalIndent(rpt, "", "  "); err != nil {
+					log.Fatalf("error: %v\n", err)
+				} else if err := os.WriteFile(jsonPath, buf, 0644); err != nil {
+					log.Fatalf("error: %v\n", err)
+				}
+				log.Printf("%s: %s: created %s\t in %v\n", clan, turnId, jsonPath, time.Since(started))
 			}
 		}
 	}
+	log.Printf("did all these things in %v\n", time.Since(rootStarted))
 }
 
 var ( // compile the regex patterns

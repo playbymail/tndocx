@@ -23,11 +23,11 @@ var (
 	rxElementHeader  = regexp.MustCompile(`^element \d{4}e\d,`)
 	rxElementStatus  = regexp.MustCompile(`^\d{4}e\d status:`)
 	rxFleetHeader    = regexp.MustCompile(`^fleet \d{4}f\d,`)
-	rxFleetMovement  = regexp.MustCompile(`^(calm|mild|strong|gale) (ne|se|sw|nw|n|s) fleet movement: move`)
+	rxFleetMovement  = regexp.MustCompile(`^(calm|mild|strong|gale) (ne|se|sw|nw|n|s) fleet movement:`)
 	rxFleetStatus    = regexp.MustCompile(`^\d{4}f\d status:`)
 	rxGarrisonHeader = regexp.MustCompile(`^garrison \d{4}g\d,`)
 	rxGarrisonStatus = regexp.MustCompile(`^\d{4}g\d status:`)
-	rxScoutMovement  = regexp.MustCompile(`^scout [1-8]: scout`)
+	rxScoutLine      = regexp.MustCompile(`^scout [1-8]:`)
 	rxTribeHeader    = regexp.MustCompile(`^tribe \d{4},`)
 	rxTribeStatus    = regexp.MustCompile(`^\d{4} status:`)
 	rxTurnHeader     = regexp.MustCompile(`^current turn \d{3,4}-\d{1,2}\(#\d{1,2}\),`)
@@ -38,13 +38,13 @@ func IsFleetMovement(line []byte) bool {
 }
 
 func IsMovementLine(line []byte) bool {
-	return IsScoutMovement(line) || IsUnitMovement(line) || IsFleetMovement(line)
+	return IsScoutLine(line) || IsUnitMovement(line) || IsFleetMovement(line)
 }
 
-// IsScoutMovement determines if a line represents a TribeNet scout movement command.
+// IsScoutLine determines if a line represents a TribeNet scout command.
 // Example: "scout 1: scout s-pr"
-func IsScoutMovement(line []byte) bool {
-	return rxScoutMovement.Match(line)
+func IsScoutLine(line []byte) bool {
+	return rxScoutLine.Match(line)
 }
 
 // IsTurnHeader determines if a line represents a TribeNet turn header.
@@ -230,8 +230,9 @@ func CompressSpaces(input []byte) []byte {
 var (
 	reBackslashDash = regexp.MustCompile(`\\+-+ *`)
 
-	reCommaBackslash = regexp.MustCompile(`,+\\`)
+	reBackslashComma = regexp.MustCompile(`\\+,+`)
 	reBackslashUnit  = regexp.MustCompile(`\\+(\d{4}(?:[cefg]\d)?)`)
+	reCommaBackslash = regexp.MustCompile(`,+\\`)
 	reDirectionUnit  = regexp.MustCompile(`\b(ne|se|sw|nw|n|s) (\d{4}(?:[cefg]\d)?)`)
 
 	reRunOfBackslashes = regexp.MustCompile(`\\\\+`)
@@ -244,7 +245,8 @@ func PreProcessMovementLine(line []byte) []byte {
 	// replace backslash+dash with backslash
 	line = reBackslashDash.ReplaceAll(line, []byte{'\\'})
 
-	// replace comma+backslash with backslash
+	// replace backslash+comma and comma+backslash with backslash
+	line = reBackslashComma.ReplaceAll(line, []byte{'\\'})
 	line = reCommaBackslash.ReplaceAll(line, []byte{'\\'})
 
 	// fix issues with backslash or direction followed by a unit ID
