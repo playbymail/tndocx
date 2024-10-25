@@ -188,7 +188,7 @@ var (
 
 func init() {
 	// initialize the lookup table for delimiters
-	for _, ch := range []byte{'\n', ',', '(', ')', ':', '\\'} {
+	for _, ch := range []byte{'\n', ',', '(', ')', '\\', ':'} {
 		isSpaceDelimiter[ch] = true
 	}
 }
@@ -228,11 +228,7 @@ func CompressSpaces(input []byte) []byte {
 }
 
 var (
-	reBackslashDash = regexp.MustCompile(`\\+ *-`)
-
-	reSpaces         = regexp.MustCompile(` +`)
-	reSpacesLeading  = regexp.MustCompile(` ([,()\\:])`)
-	reSpacesTrailing = regexp.MustCompile(`([,()\\:]) `)
+	reBackslashDash = regexp.MustCompile(`\\+-+ *`)
 
 	reCommaBackslash = regexp.MustCompile(`,+\\`)
 	reBackslashUnit  = regexp.MustCompile(`\\+(\d{4}(?:[cefg]\d)?)`)
@@ -243,16 +239,10 @@ var (
 )
 
 // PreProcessMovementLine processes a movement line to fix issues with backslash or direction followed by a unit ID.
+// Caller must have already compressed spaces on input line.
 func PreProcessMovementLine(line []byte) []byte {
-	// remove backslash-dashes
+	// replace backslash+dash with backslash
 	line = reBackslashDash.ReplaceAll(line, []byte{'\\'})
-
-	// reduce consecutive spaces to a single space
-	line = reSpaces.ReplaceAll(line, []byte{' '})
-
-	// remove leading and trailing spaces around some punctuation
-	line = reSpacesLeading.ReplaceAll(line, []byte{'$', '1'})
-	line = reSpacesTrailing.ReplaceAll(line, []byte{'$', '1'})
 
 	// replace comma+backslash with backslash
 	line = reCommaBackslash.ReplaceAll(line, []byte{'\\'})
