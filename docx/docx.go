@@ -10,9 +10,10 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 )
 
-// ReadFile loads a Word document from a file, converts it to plain text, and returns the text as a byte slice.
+// ReadFile loads a Word document from a file, converts it to lower-case plain text, and returns the text as a byte slice.
 func ReadFile(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -21,12 +22,12 @@ func ReadFile(path string) ([]byte, error) {
 	return ReadBuffer(data)
 }
 
-// ReadBuffer loads a Word document from a byte slice, converts it to plain text, and returns the text as a byte slice.
+// ReadBuffer loads a Word document from a byte slice, converts it to lower-case plain text, and returns the text as a byte slice.
 func ReadBuffer(data []byte) ([]byte, error) {
 	return Read(bytes.NewReader(data))
 }
 
-// Read reads a Word document, converts it to plain text, and returns the text as a byte slice.
+// Read reads a Word document, converts it to lower-case plain text, and returns the text as a byte slice.
 func Read(r *bytes.Reader) ([]byte, error) {
 	zr, err := zip.NewReader(r, r.Size())
 	if err != nil {
@@ -54,14 +55,14 @@ func Read(r *bytes.Reader) ([]byte, error) {
 	for _, word := range doc.WordsList {
 		for column, content := range word.Content {
 			if column != 0 {
-				result.WriteString(" ")
+				result.WriteByte(' ')
 			}
-			result.WriteString(content)
+			result.WriteString(strings.ToLower(content))
 		}
 		result.WriteByte('\n')
 	}
 
-	return result.Bytes(), nil
+	return scrubNonPrintingGlyphs(result.Bytes()), nil
 }
 
 // http://officeopenxml.com/anatomyofOOXML.php
@@ -155,4 +156,28 @@ func (d *docx) listP(data string) {
 		}
 		d.getT(item)
 	}
+}
+
+var (
+	// pre-computed lookup table for acceptable printing characters
+	isPrintingGlyph [256]bool
+)
+
+func init() {
+	// initialize the lookup table for acceptable printing characters
+	for ch := '!'; ch < '~'; ch++ {
+		isPrintingGlyph[ch] = true
+	}
+	isPrintingGlyph['\n'] = true
+}
+
+// scrubNonPrintingGlyphs replaces all non-printing characters with spaces.
+// Updates the input slice in-place.
+func scrubNonPrintingGlyphs(input []byte) []byte {
+	for i := 0; i < len(input); i++ {
+		if !isPrintingGlyph[input[i]] {
+			input[i] = ' '
+		}
+	}
+	return input
 }

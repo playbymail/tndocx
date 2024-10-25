@@ -3,6 +3,8 @@
 package main
 
 import (
+	"bytes"
+	"github.com/playbymail/tndocx"
 	"github.com/playbymail/tndocx/docx"
 	"iter"
 	"log"
@@ -28,20 +30,34 @@ func main() {
 				if err != nil {
 					log.Fatalf("error: %v\n", err)
 				}
-				log.Printf("%s: %s: loaded  %s\n", clan, turnId, docxPath)
+				log.Printf("%s: %s: loaded  %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
 
 				// extract the text from the Word document
 				text, err := docx.ReadBuffer(input)
 				if err != nil {
 					log.Fatalf("error: %v\n", err)
 				}
+				log.Printf("%s: %s: read    %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
+
+				// compress spaces within the text
+				text = tndocx.CompressSpaces(text)
+				log.Printf("%s: %s: despace %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
+
+				// remove unnecessary lines from the text
+				lines := bytes.Split(text, []byte{'\n'})
+				log.Printf("%s: %s: split   %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
+				lines = tndocx.RemoveNonMappingLines(lines)
+				log.Printf("%s: %s: trimmed %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
 
 				// write the text to a file
+				text = bytes.Join(lines, []byte{'\n'})
+				log.Printf("%s: %s: merged  %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
+
 				textPath := strings.TrimSuffix(docxPath, filepath.Ext(docxPath)) + ".txt"
 				if err := os.WriteFile(textPath, text, 0644); err != nil {
 					log.Fatalf("error: %v\n", err)
 				}
-				log.Printf("%s: %s: created %s\t%v\n", clan, turnId, textPath, time.Since(started))
+				log.Printf("%s: %s: created %s\t in %v\n", clan, turnId, textPath, time.Since(started))
 			}
 		}
 	}
