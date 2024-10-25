@@ -20,12 +20,12 @@ var (
 	rxClanHeader     = regexp.MustCompile(`^tribe 0\d{3},`)
 	rxCourierHeader  = regexp.MustCompile(`^courier \d{4}c\d,`)
 	rxCourierStatus  = regexp.MustCompile(`^\d{4}c\d status:`)
-	rxElementHeader  = regexp.MustCompile(`^element \d{4}e\d,,`)
+	rxElementHeader  = regexp.MustCompile(`^element \d{4}e\d,`)
 	rxElementStatus  = regexp.MustCompile(`^\d{4}e\d status:`)
 	rxFleetHeader    = regexp.MustCompile(`^fleet \d{4}f\d,`)
 	rxFleetMovement  = regexp.MustCompile(`^(calm|mild|strong|gale) (ne|se|sw|nw|n|s) fleet movement: move`)
 	rxFleetStatus    = regexp.MustCompile(`^\d{4}f\d status:`)
-	rxGarrisonHeader = regexp.MustCompile(`^garrison \d{4}g\d ,`)
+	rxGarrisonHeader = regexp.MustCompile(`^garrison \d{4}g\d,`)
 	rxGarrisonStatus = regexp.MustCompile(`^\d{4}g\d status:`)
 	rxScoutMovement  = regexp.MustCompile(`^scout [1-8]: scout`)
 	rxTribeHeader    = regexp.MustCompile(`^tribe \d{4},`)
@@ -225,4 +225,51 @@ func CompressSpaces(input []byte) []byte {
 		input = input[1:]
 	}
 	return output.Bytes()
+}
+
+var (
+	reBackslashDash = regexp.MustCompile(`\\+ *-`)
+
+	reSpaces         = regexp.MustCompile(` +`)
+	reSpacesLeading  = regexp.MustCompile(` ([,()\\:])`)
+	reSpacesTrailing = regexp.MustCompile(`([,()\\:]) `)
+
+	reCommaBackslash = regexp.MustCompile(`,+\\`)
+	reBackslashUnit  = regexp.MustCompile(`\\+(\d{4}(?:[cefg]\d)?)`)
+	reDirectionUnit  = regexp.MustCompile(`\b(ne|se|sw|nw|n|s) (\d{4}(?:[cefg]\d)?)`)
+
+	reRunOfBackslashes = regexp.MustCompile(`\\\\+`)
+	reRunOfComma       = regexp.MustCompile(`,,+`)
+)
+
+// PreProcessMovementLine processes a movement line to fix issues with backslash or direction followed by a unit ID.
+func PreProcessMovementLine(line []byte) []byte {
+	// remove backslash-dashes
+	line = reBackslashDash.ReplaceAll(line, []byte{'\\'})
+
+	// reduce consecutive spaces to a single space
+	line = reSpaces.ReplaceAll(line, []byte{' '})
+
+	// remove leading and trailing spaces around some punctuation
+	line = reSpacesLeading.ReplaceAll(line, []byte{'$', '1'})
+	line = reSpacesTrailing.ReplaceAll(line, []byte{'$', '1'})
+
+	// replace comma+backslash with backslash
+	line = reCommaBackslash.ReplaceAll(line, []byte{'\\'})
+
+	// fix issues with backslash or direction followed by a unit ID
+	line = reBackslashUnit.ReplaceAll(line, []byte{',', '$', '1'})
+	line = reDirectionUnit.ReplaceAll(line, []byte{'$', '1', ',', '$', '2'})
+
+	// reduce runs of certain punctuation to a single punctuation character
+	line = reRunOfBackslashes.ReplaceAll(line, []byte{'\\'})
+	line = reRunOfComma.ReplaceAll(line, []byte{','})
+
+	// tweak the fleet movement to remove the trailing comma from the observations
+	line = bytes.ReplaceAll(line, []byte{',', ')'}, []byte{')'})
+
+	// remove all trailing backslashes from the line
+	line = bytes.TrimRight(line, "\\")
+
+	return line
 }

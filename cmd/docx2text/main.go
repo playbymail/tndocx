@@ -48,6 +48,10 @@ func main() {
 				log.Printf("%s: %s: split   %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
 				lines = tndocx.RemoveNonMappingLines(lines)
 				log.Printf("%s: %s: trimmed %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
+				for i := range lines {
+					lines[i] = tndocx.PreProcessMovementLine(lines[i])
+				}
+				log.Printf("%s: %s: prepped %s\t in %v\n", clan, turnId, docxPath, time.Since(started))
 
 				// write the text to a file
 				text = bytes.Join(lines, []byte{'\n'})
