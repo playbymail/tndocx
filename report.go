@@ -5,6 +5,7 @@ package tndocx
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -82,7 +83,7 @@ var (
 	// these look like:
 	// - tribe movement:move
 	// - tribe movement:move ne-pr\n-pr,o nw
-	// 0154/data/input/0900-09.0154.report.txt:Tribe Movement: Move S-GH,  L NE,  SE,  S\SW-GH,  L SE,  S\SW-GH,  L SE,  S\SW-GH,  L SE,  S\SW-GH,  L SE,  S\SW-PR,  L SE\S-GH,  L NE, River SE S\No Ford on River to SE of HEX
+	// 0987/data/input/0900-09.0987.report.txt:Tribe Movement: Move S-GH,  L NE,  SE,  S\SW-GH,  L SE,  S\SW-GH,  L SE,  S\SW-GH,  L SE,  S\SW-GH,  L SE,  S\SW-PR,  L SE\S-GH,  L NE, River SE S\No Ford on River to SE of HEX
 	// - tribe movement:move nw-pr,river sw,ford s,dowdy holler,0987g1\not enough m.p's to move to n into swamp
 	rxTribeMovementLine = regexp.MustCompile(`^tribe movement:move(.*)$`)
 
@@ -92,6 +93,9 @@ var (
 	// - 0987 status:grassy hills,dowdy holler,coal,river n ne,ford se s,0987,0987e1
 	// - 0987g1 status:conifer hills,west harbor,iron ore,o ne,n,ford se,s,stone road ne n,0987g1
 	rxTribeStatusLine = regexp.MustCompile(`\d{4}(?:[cdefg]\d)? status:(.*)$`)
+
+	// - current turn 900-04(#4),summer,fine
+	rxTurnHeaderLine = regexp.MustCompile(`^current turn (\d{3,4})-(\d{1,2})`)
 )
 
 // ToReport filters an input slice of lines, keeping only:
@@ -134,14 +138,22 @@ func ToReport(filename string, input [][]byte) *Report {
 				Input: string(line),
 			}
 			report.Units[unit.Id] = unit
-		} else if match := rxTurnHeader.FindSubmatch(line); match != nil {
+		} else if match := rxTurnHeaderLine.FindSubmatch(line); match != nil {
+			year, _ := strconv.Atoi(string(match[1]))
+			month, _ := strconv.Atoi(string(match[2]))
+			report.TurnId = fmt.Sprintf("%04d-%02d", year, month)
+		} else if rxTurnHeader.Match(line) {
+			// this match seems redundant, but it's not.
+			// it allows us to capture turn headers that are slightly off.
+			// if we didn't, then it would be much harder for the players to debug their reports.
 			report.TurnId = string(line)
 		} else if match := rxScoutPatrolLine.FindSubmatch(line); match != nil {
 			scout := &Scout{
 				Id: string(match[1]),
 			}
 			for _, step := range strings.Split(string(match[2]), "\\") {
-				if step = strings.TrimSpace(step); step == "" {
+				step = strings.TrimSpace(strings.TrimLeft(strings.TrimRight(step, ", "), ", "))
+				if step == "" {
 					continue
 				}
 				scout.Patrol = append(scout.Patrol, step)

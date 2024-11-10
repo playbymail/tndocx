@@ -17,7 +17,6 @@ const (
 )
 
 var (
-	rxClanHeader     = regexp.MustCompile(`^tribe 0\d{3},`)
 	rxCourierHeader  = regexp.MustCompile(`^courier \d{4}c\d,`)
 	rxCourierStatus  = regexp.MustCompile(`^\d{4}c\d status:`)
 	rxElementHeader  = regexp.MustCompile(`^element \d{4}e\d,`)
@@ -30,7 +29,7 @@ var (
 	rxScoutLine      = regexp.MustCompile(`^scout [1-8]:`)
 	rxTribeHeader    = regexp.MustCompile(`^tribe \d{4},`)
 	rxTribeStatus    = regexp.MustCompile(`^\d{4} status:`)
-	rxTurnHeader     = regexp.MustCompile(`^current turn \d{3,4}-\d{1,2}\(#\d{1,2}\),`)
+	rxTurnHeader     = regexp.MustCompile(`^current turn \d{3,4}-\d{1,2}\(#\d+\),`)
 )
 
 func IsFleetMovement(line []byte) bool {
@@ -38,13 +37,25 @@ func IsFleetMovement(line []byte) bool {
 }
 
 func IsMovementLine(line []byte) bool {
-	return IsScoutLine(line) || IsUnitMovement(line) || IsFleetMovement(line)
+	return IsTribeMovement(line) || IsTribeFollows(line) || IsTribeGoesTo(line) || IsScoutLine(line) || IsFleetMovement(line)
 }
 
 // IsScoutLine determines if a line represents a TribeNet scout command.
 // Example: "scout 1: scout s-pr"
 func IsScoutLine(line []byte) bool {
 	return rxScoutLine.Match(line)
+}
+
+func IsTribeFollows(line []byte) bool {
+	return bytes.HasPrefix(line, []byte("tribe follows "))
+}
+
+func IsTribeGoesTo(line []byte) bool {
+	return bytes.HasPrefix(line, []byte("tribe goes to "))
+}
+
+func IsTribeMovement(line []byte) bool {
+	return bytes.HasPrefix(line, []byte("tribe movement:"))
 }
 
 // IsTurnHeader determines if a line represents a TribeNet turn header.
@@ -63,10 +74,6 @@ func IsTurnHeader(line []byte) bool {
 // Returns true if the line matches any of these header patterns.
 func IsUnitHeader(line []byte) bool {
 	return rxTribeHeader.Match(line) || rxCourierHeader.Match(line) || rxElementHeader.Match(line) || rxFleetHeader.Match(line) || rxGarrisonHeader.Match(line)
-}
-
-func IsUnitMovement(line []byte) bool {
-	return bytes.HasPrefix(line, []byte("tribe movement:")) || bytes.HasPrefix(line, []byte("tribe follows ")) || bytes.HasPrefix(line, []byte("tribe goes to "))
 }
 
 // IsUnitStatus determines if a line represents a TribeNet unit status line.
@@ -179,6 +186,52 @@ func ScrubEOL(input []byte) []byte {
 		input = input[1:]
 	}
 	return output.Bytes()
+}
+
+type Section struct {
+	Id     int
+	Header []byte
+	Turn   []byte
+	Moves  struct {
+		Movement []byte
+		Follows  []byte
+		GoesTo   []byte
+		Fleet    []byte
+		Scouts   [][]byte
+	}
+	Status []byte
+}
+
+// SectionInput splits the input into lines and assigns lines to their own sections.
+// Each element in the input should get a single section
+// Each section should contain only movement lines, turn header, and unit header.
+func SectionInput(input []byte) (sections []*Section) {
+	var section *Section
+	for _, line := range bytes.Split(input, []byte{'\n'}) {
+		if len(line) == 0 {
+			continue
+		} else if IsUnitHeader(line) {
+			section = &Section{Id: len(sections) + 1, Header: line}
+			sections = append(sections, section)
+		} else if section == nil {
+			continue
+		} else if IsFleetMovement(line) {
+			section.Moves.Fleet = line
+		} else if IsTribeFollows(line) {
+			section.Moves.Follows = line
+		} else if IsTribeGoesTo(line) {
+			section.Moves.GoesTo = line
+		} else if IsTribeMovement(line) {
+			section.Moves.Movement = line
+		} else if IsScoutLine(line) {
+			section.Moves.Scouts = append(section.Moves.Scouts, line)
+		} else if IsTurnHeader(line) {
+			section.Turn = line
+		} else if IsUnitStatus(line) {
+			section.Status = line
+		}
+	}
+	return sections
 }
 
 var (
