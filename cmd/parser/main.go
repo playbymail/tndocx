@@ -42,9 +42,14 @@ func main() {
 		if err != nil {
 			log.Fatalf("error: %v\n", err)
 		}
-		// parse the document
+		// parse the document into sections
 		sections, err := tndocx.ParseSections(input)
 		log.Printf("%s: parsed %3d sections in %v\n", fileName, len(sections), time.Since(started))
+		// parse the sections into a report
+		_, err = tndocx.ParseReport(fileName, sections)
+		if err != nil {
+			log.Fatalf("error: %v\n", err)
+		}
 	}
 	log.Printf("parsed text %3d: word %3d: total %3d files in %v\n", numberOfTextFiles, numberOfWordFiles, numberOfReportFiles, time.Since(rootStarted))
 }

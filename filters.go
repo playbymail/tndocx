@@ -17,19 +17,28 @@ const (
 )
 
 var (
+	rxUnitCourier  = regexp.MustCompile(`^courier \d{4}c\d$`)
+	rxUnitElement  = regexp.MustCompile(`^element \d{4}e\d$`)
+	rxUnitFleet    = regexp.MustCompile(`^fleet \d{4}f\d$`)
+	rxUnitGarrison = regexp.MustCompile(`^garrison \d{4}g\d$`)
+	rxUnitTribe    = regexp.MustCompile(`^tribe \d{4}$`)
+
 	rxCourierHeader  = regexp.MustCompile(`^courier \d{4}c\d,`)
-	rxCourierStatus  = regexp.MustCompile(`^\d{4}c\d status:`)
 	rxElementHeader  = regexp.MustCompile(`^element \d{4}e\d,`)
-	rxElementStatus  = regexp.MustCompile(`^\d{4}e\d status:`)
 	rxFleetHeader    = regexp.MustCompile(`^fleet \d{4}f\d,`)
-	rxFleetMovement  = regexp.MustCompile(`^(calm|mild|strong|gale) (ne|se|sw|nw|n|s) fleet movement:`)
-	rxFleetStatus    = regexp.MustCompile(`^\d{4}f\d status:`)
 	rxGarrisonHeader = regexp.MustCompile(`^garrison \d{4}g\d,`)
-	rxGarrisonStatus = regexp.MustCompile(`^\d{4}g\d status:`)
-	rxScoutLine      = regexp.MustCompile(`^scout [1-8]:`)
 	rxTribeHeader    = regexp.MustCompile(`^tribe \d{4},`)
+
+	rxTurnHeader = regexp.MustCompile(`^current turn \d{3,4}-\d{1,2}\(#\d+\),`)
+
+	rxFleetMovement = regexp.MustCompile(`^(calm|mild|strong|gale) (ne|se|sw|nw|n|s) fleet movement:`)
+	rxScoutLine     = regexp.MustCompile(`^scout [1-8]:`)
+
+	rxCourierStatus  = regexp.MustCompile(`^\d{4}c\d status:`)
+	rxElementStatus  = regexp.MustCompile(`^\d{4}e\d status:`)
+	rxFleetStatus    = regexp.MustCompile(`^\d{4}f\d status:`)
+	rxGarrisonStatus = regexp.MustCompile(`^\d{4}g\d status:`)
 	rxTribeStatus    = regexp.MustCompile(`^\d{4} status:`)
-	rxTurnHeader     = regexp.MustCompile(`^current turn \d{3,4}-\d{1,2}\(#\d+\),`)
 )
 
 func IsFleetMovement(line []byte) bool {

@@ -7,7 +7,151 @@ import (
 	"errors"
 	"github.com/playbymail/tndocx/docx"
 	"regexp"
+	"time"
 )
+
+func ParseReport(filename string, sections []*Section) (*Report, error) {
+	if len(sections) == 0 {
+		return nil, ErrEmptyInput
+	}
+	report := &Report{
+		FileName: filename,
+		Units:    make(map[string]*Unit),
+	}
+	report.Meta.GeneratedBy = "tn3"
+	report.Meta.Version = version.String()
+	report.Meta.Timestamp = time.Now().UTC().Unix()
+	for _, section := range sections {
+		if section.Header == nil {
+			return nil, ErrMissingElementHeader
+		}
+	}
+	return report, nil
+}
+
+//func parseUnit(section *Section) (*Unit, error) {
+//	if section.Header != nil {
+//		return nil, ErrMissingElementHeader
+//	}
+//	// element header should contain four comma separated fields
+//	var unit *Unit
+//	fields := bytes.Split(section.Header, []byte{','})
+//
+//	// the code that created the section thinks that it found a section,
+//	// which means we should have at least an element in the header.
+//	element := bytes.TrimSpace(fields[0])
+//	if match := rxCourierHeader.FindSubmatch(section.Header); match != nil {
+//		unit = &Unit{
+//			Id: string(match[1]),
+//		}
+//	} else if match = rxElementHeader.FindSubmatch(section.Header); match != nil {
+//		unit = &Unit{
+//			Id: string(match[1]),
+//		}
+//	} else if match = rxFleetHeader.FindSubmatch(section.Header); match != nil {
+//		unit = &Unit{
+//			Id: string(match[1]),
+//		}
+//	} else if match = rxGarrisonHeader.FindSubmatch(section.Header); match != nil {
+//		unit = &Unit{
+//			Id: string(match[1]),
+//		}
+//	} else if match = rxTribeHeader.FindSubmatch(section.Header); match != nil {
+//		unit = &Unit{
+//			Id: string(match[1]),
+//		}
+//	} else {
+//		// this should not happen.
+//		unit = &Unit{
+//			Id:    fmt.Sprintf("unit-%03d", section.Id),
+//			Input: string(section.Header),
+//		}
+//	}
+//	if len(fields) > 1 {
+//		name = bytes.TrimSpace(fields[1])
+//	}
+//	if len(fields) > 2 {
+//		currentHex = bytes.TrimSpace(fields[2])
+//	}
+//	if len(fields) > 3 {
+//		previousHex = bytes.TrimSpace(fields[3])
+//	}
+//	if len(fields) > 4 {
+//		// this should never happen
+//	}
+//
+//	return unit, nil
+//}
+
+// element header should contain four comma separated fields
+func parseElementHeader(elementHeader []byte) *Node {
+	root := &Node{Kind: "element-header"}
+	if len(elementHeader) == 0 {
+		root.Error = ErrMissingElementHeader
+		root.Input = string(elementHeader)
+	}
+
+	fields := bytes.Split(elementHeader, []byte{','})
+
+	element := &Node{Kind: "element-id"}
+
+	// the code that created the section thinks that it found a section,
+	// which means we should have at least an element in the header.
+	field := bytes.TrimSpace(fields[0])
+	if match := rxUnitCourier.FindSubmatch(field); match != nil {
+		element.Value = string(match[1])
+	} else if match = rxUnitElement.FindSubmatch(field); match != nil {
+		element.Value = string(match[1])
+	} else if match = rxUnitFleet.FindSubmatch(field); match != nil {
+		element.Value = string(match[1])
+	} else if match = rxUnitGarrison.FindSubmatch(field); match != nil {
+		element.Value = string(match[1])
+	} else if match = rxUnitTribe.FindSubmatch(field); match != nil {
+		element.Value = string(match[1])
+	} else {
+		// this should not happen.
+		// there should always be a match for one of the above regexes.
+		// there's a bug in the code that created the section.
+		element.Error = ErrInvalidElementId
+		element.Input = string(field)
+	}
+	root.Children = append(root.Children, element)
+
+	name := &Node{Kind: "name"}
+	if len(fields) < 1 {
+		name.Error = ErrMissingField
+	} else {
+		field = bytes.TrimSpace(fields[1])
+		name.Value = string(field)
+	}
+	root.Children = append(root.Children, name)
+
+	currentHex := &Node{Kind: "current-hex"}
+	if len(fields) < 2 {
+		currentHex.Error = ErrMissingField
+	} else {
+		field = bytes.TrimSpace(fields[2])
+	}
+	root.Children = append(root.Children, currentHex)
+
+	previousHex := &Node{Kind: "previous-hex"}
+	if len(fields) < 3 {
+		previousHex.Error = ErrMissingField
+	} else {
+		field = bytes.TrimSpace(fields[3])
+	}
+	root.Children = append(root.Children, previousHex)
+
+	if len(fields) > 4 {
+		root.Children = append(root.Children, &Node{
+			Kind:  "extra-input",
+			Error: ErrUnexpectedInput,
+			Input: string(bytes.Join(fields[4:], []byte{','})),
+		})
+	}
+
+	return root
+}
 
 func ParseSections(input []byte) ([]*Section, error) {
 	if len(input) == 0 {
@@ -117,8 +261,6 @@ func scrubGoesToLine(line []byte) []byte {
 	if len(line) == 0 {
 		return line
 	}
-	// remove the "tribe goes to" prefix
-	line = bytes.TrimSpace(bytes.TrimPrefix(line, []byte("tribe goes to")))
 	// return the pre-processed line
 	return line
 }
